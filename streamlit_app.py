@@ -26,17 +26,15 @@ with st.sidebar:
         st.write("No history yet.")
 
 # 4. Main App Layout (Split into 2 Columns)
-# This creates the "Right Sidebar" effect for Favorites
 main_col, fav_col = st.columns([3, 1], gap="large")
 
 with main_col:
     st.title("🎴 Pokémon Card Price Finder")
     
-    # Input box - uses the session_state to allow favorites to "fill" it
+    # Input box
     card_name = st.text_input("Enter Card Name", value=st.session_state.search_query)
 
     if card_name:
-        # Add to history list
         if card_name not in st.session_state.history:
             st.session_state.history.append(card_name)
         
@@ -67,8 +65,7 @@ with main_col:
                             st.write(f"### {price}")
                         st.divider()
 
-                    # --- AUTO-SCROLL JAVASCRIPT ---
-                    # This tells the browser to scroll down after loading results
+                    # Auto-Scroll Javascript
                     st.components.v1.html(
                         """
                         <script>
@@ -95,5 +92,7 @@ with fav_col:
     ]
     
     for fav in my_favs:
-        # If a favorite is clicked, update the search query and rerun
+        # FIXED LINE: Added the missing closing parenthesis ) and :
         if st.button(f"🔍 {fav}", key=f"fav_{fav}", use_container_width=True):
+            st.session_state.search_query = fav
+            st.rerun()
