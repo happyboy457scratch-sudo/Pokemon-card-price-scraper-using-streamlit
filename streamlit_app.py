@@ -76,14 +76,17 @@ with main_col:
 with fav_col:
     st.markdown("### ⭐ Happyboy457’s favorites")
     
-    # Dictionary mapping card names to their image URLs
+    # Updated favorite images
     my_favs = {
-        "Togedemaru 104": "http://googleusercontent.com/image_collection/image_retrieval/6885155460698587834_0",
-        "Guzzlord GX SV71": "http://googleusercontent.com/image_collection/image_retrieval/5375119776459783041_0",
-        "Scizor GX SV72": "http://googleusercontent.com/image_collection/image_retrieval/6759395816528484138_0",
-        "Zoroark GX 77a": "http://googleusercontent.com/image_collection/image_retrieval/12931437356067139624_0"
+        "Togedemaru 104": "https://images.pokemontcg.io/sm6/104_hires.png",
+        "Guzzlord GX SV71": "https://images.pokemontcg.io/sm8b/SV71_hires.png",
+        "Scizor GX SV72": "https://images.pokemontcg.io/sm8b/SV72_hires.png",
+        "Zoroark GX 77a": "https://images.pokemontcg.io/sm35/77a_hires.png"
     }
     
     for name, img in my_favs.items():
         st.image(img, caption=name, use_container_width=True)
-        if st.button(f"Check Price: {name}", key=f"fav_{name}", use
+        # THE FIXED LINE:
+        if st.button(f"Check Price: {name}", key=f"fav_{name}", use_container_width=True):
+            st.session_state.search_query = name
+            st.rerun
