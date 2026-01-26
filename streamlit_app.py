@@ -76,7 +76,7 @@ with main_col:
 with fav_col:
     st.markdown("### ⭐ Happyboy457’s favorites")
     
-    # Updated favorite images
+    # Corrected dictionary with high-res official URLs
     my_favs = {
         "Togedemaru 104": "https://images.pokemontcg.io/sm6/104_hires.png",
         "Guzzlord GX SV71": "https://images.pokemontcg.io/sm8b/SV71_hires.png",
@@ -84,9 +84,11 @@ with fav_col:
         "Zoroark GX 77a": "https://images.pokemontcg.io/sm35/77a_hires.png"
     }
     
-    for name, img in my_favs.items():
-        st.image(img, caption=name, use_container_width=True)
-        # THE FIXED LINE:
-        if st.button(f"Check Price: {name}", key=f"fav_{name}", use_container_width=True):
+    for name, img_url in my_favs.items():
+        # Display the high-res image
+        st.image(img_url, caption=name, use_container_width=True)
+        # Display the button with correct brackets
+        if st.button(f"Check Price: {name}", key=f"btn_{name.replace(' ', '_')}", use_container_width=True):
             st.session_state.search_query = name
-            st.rerun
+            st.rerun()
+        st.write("---")
