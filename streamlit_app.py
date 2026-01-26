@@ -13,24 +13,16 @@ if not os.path.exists(IMG_DIR):
     os.makedirs(IMG_DIR)
 
 # 3. The Polite Scooper
-# Cache is now 24 hours (86400s) to minimize hitting the site
 @st.cache_data(ttl=86400)
 def get_card_data(card_query):
     clean_name = card_query.replace(' ', '_').replace('/', '-')
     filepath = os.path.join(IMG_DIR, f"{clean_name}.jpg")
     
-    # Check if we have it locally FIRST (No delay needed if we have it)
-    if os.path.exists(filepath):
-        # We still need to scoop the price if we want it live, 
-        # but let's assume if it's cached, we skip the wait.
-        pass
-
     search_url = f"https://www.pricecharting.com/search-products?q={card_query.replace(' ', '+')}&type=prices"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
     try:
-        # --- THE DELAY ---
-        # We wait 10 seconds before the actual request
+        # Polite 10-second delay
         time.sleep(10) 
         
         response = requests.get(search_url, headers=headers, timeout=15)
@@ -71,3 +63,32 @@ with main_col:
                 status.update(label="Data Secured!", state="complete")
                 c1, c2 = st.columns([1, 2])
                 with c1:
+                    # INDENTED PROPERLY
+                    st.image(res['img'], width=300)
+                with c2:
+                    # INDENTED PROPERLY
+                    st.header(res['name'])
+                    st.subheader(f"Price: {res['price']}")
+            else:
+                status.update(label="Scoop Failed", state="error")
+
+with fav_col:
+    st.markdown("### ⭐ Happyboy457’s favorites")
+    fav_list = ["Togedemaru 104", "Guzzlord gx sv71", "Scizor GX SV72", "zoroark gx 77a"]
+    
+    for fav in fav_list:
+        clean_fav = fav.replace(' ', '_').replace('/', '-')
+        fav_path = os.path.join(IMG_DIR, f"{clean_fav}.jpg")
+        
+        if os.path.exists(fav_path):
+            st.image(fav_path, use_container_width=True)
+            st.write(f"**{fav}**")
+            if st.button(f"Update {fav}", key=f"f_{fav}"):
+                st.session_state.search_query = fav
+                st.rerun()
+        else:
+            st.warning(f"Not in system.")
+            if st.button(f"Fetch {fav}", key=f"fetch_{fav}"):
+                st.session_state.search_query = fav
+                st.rerun()
+        st.divider()
