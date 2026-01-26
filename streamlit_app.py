@@ -8,8 +8,6 @@ st.set_page_config(page_title="Happyboy457's TCG Tracker", page_icon="🎴", lay
 # 2. Memory Setup
 if 'history' not in st.session_state:
     st.session_state.history = []
-if 'search_query' not in st.session_state:
-    st.session_state.search_query = ""
 
 # 3. Sidebar (Left Side) - Search History
 with st.sidebar:
@@ -27,6 +25,12 @@ main_col, fav_col = st.columns([3, 1], gap="large")
 
 with main_col:
     st.title("🎴 Pokémon Card Price Finder")
+    
+    # --- AUTO-LOAD LOGIC ---
+    # If this is the first time opening the app, set default to your favorite
+    if 'search_query' not in st.session_state:
+        st.session_state.search_query = "Togedemaru 104"
+    
     card_name = st.text_input("Enter Card Name", value=st.session_state.search_query)
 
     if card_name:
@@ -53,9 +57,11 @@ with main_col:
 
                         c1, c2, c3 = st.columns([1, 3, 1])
                         with c1:
-                            if img_url: st.image(img_url, width=80)
-                        with c2: st.subheader(name)
-                        with c3: st.write(f"### {price}")
+                            if img_url: st.image(img_url, width=120)
+                        with c2:
+                            st.subheader(name)
+                        with c3:
+                            st.write(f"### {price}")
                         st.divider()
 
                     # Auto-Scroll Script
@@ -76,19 +82,17 @@ with main_col:
 with fav_col:
     st.markdown("### ⭐ Happyboy457’s favorites")
     
-    # Corrected dictionary with high-res official URLs
+    # Manually verified high-quality image links
     my_favs = {
-        "Togedemaru 104": "https://images.pokemontcg.io/sm6/104_hires.png",
-        "Guzzlord GX SV71": "https://images.pokemontcg.io/sm8b/SV71_hires.png",
-        "Scizor GX SV72": "https://images.pokemontcg.io/sm8b/SV72_hires.png",
-        "Zoroark GX 77a": "https://images.pokemontcg.io/sm35/77a_hires.png"
+        "Togedemaru 104": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm6/104.png",
+        "Guzzlord GX SV71": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm8b/SV71.png",
+        "Scizor GX SV72": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm8b/SV72.png",
+        "Zoroark GX 77a": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm35/77a.png"
     }
     
     for name, img_url in my_favs.items():
-        # Display the high-res image
-        st.image(img_url, caption=name, use_container_width=True)
-        # Display the button with correct brackets
-        if st.button(f"Check Price: {name}", key=f"btn_{name.replace(' ', '_')}", use_container_width=True):
+        st.image(img_url, use_container_width=True)
+        if st.button(f"Search {name}", key=f"fav_btn_{name}", use_container_width=True):
             st.session_state.search_query = name
             st.rerun()
         st.write("---")
