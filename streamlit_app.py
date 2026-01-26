@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 # 1. Page Configuration
 st.set_page_config(page_title="Happyboy457's TCG Tracker", page_icon="🎴", layout="wide")
 
-# 2. Memory Setup (Session State)
+# 2. Memory Setup
 if 'history' not in st.session_state:
     st.session_state.history = []
 if 'search_query' not in st.session_state:
@@ -19,19 +19,14 @@ with st.sidebar:
             if st.button(item, key=f"hist_{item}", use_container_width=True):
                 st.session_state.search_query = item
                 st.rerun()
-        if st.button("Clear History"):
-            st.session_state.history = []
-            st.rerun()
     else:
         st.write("No history yet.")
 
-# 4. Main App Layout (Split into 2 Columns)
+# 4. Main Layout
 main_col, fav_col = st.columns([3, 1], gap="large")
 
 with main_col:
     st.title("🎴 Pokémon Card Price Finder")
-    
-    # Input box
     card_name = st.text_input("Enter Card Name", value=st.session_state.search_query)
 
     if card_name:
@@ -48,7 +43,7 @@ with main_col:
                 cards = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
                 
                 if not cards:
-                    st.warning("No cards found. Try a different name!")
+                    st.warning("No cards found.")
                 else:
                     for card in cards:
                         name = card.find('td', class_='title').text.strip()
@@ -59,13 +54,11 @@ with main_col:
                         c1, c2, c3 = st.columns([1, 3, 1])
                         with c1:
                             if img_url: st.image(img_url, width=80)
-                        with c2:
-                            st.subheader(name)
-                        with c3:
-                            st.write(f"### {price}")
+                        with c2: st.subheader(name)
+                        with c3: st.write(f"### {price}")
                         st.divider()
 
-                    # Auto-Scroll Javascript
+                    # Auto-Scroll Script
                     st.components.v1.html(
                         """
                         <script>
@@ -82,17 +75,15 @@ with main_col:
 
 with fav_col:
     st.markdown("### ⭐ Happyboy457’s favorites")
-    st.write("Click a card to check its current price:")
     
-    my_favs = [
-        "Togedemaru 104", 
-        "Guzzlord gx sv71", 
-        "Scizor GX SV72", 
-        "zoroark gx 77a"
-    ]
+    # Dictionary mapping card names to their image URLs
+    my_favs = {
+        "Togedemaru 104": "http://googleusercontent.com/image_collection/image_retrieval/6885155460698587834_0",
+        "Guzzlord GX SV71": "http://googleusercontent.com/image_collection/image_retrieval/5375119776459783041_0",
+        "Scizor GX SV72": "http://googleusercontent.com/image_collection/image_retrieval/6759395816528484138_0",
+        "Zoroark GX 77a": "http://googleusercontent.com/image_collection/image_retrieval/12931437356067139624_0"
+    }
     
-    for fav in my_favs:
-        # FIXED LINE: Added the missing closing parenthesis ) and :
-        if st.button(f"🔍 {fav}", key=f"fav_{fav}", use_container_width=True):
-            st.session_state.search_query = fav
-            st.rerun()
+    for name, img in my_favs.items():
+        st.image(img, caption=name, use_container_width=True)
+        if st.button(f"Check Price: {name}", key=f"fav_{name}", use
