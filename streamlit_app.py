@@ -5,94 +5,80 @@ from bs4 import BeautifulSoup
 # 1. Page Configuration
 st.set_page_config(page_title="Happyboy457's TCG Tracker", page_icon="🎴", layout="wide")
 
-# 2. Memory Setup
+# 2. The "Scooper" Function
+# This function does the heavy lifting for the favorites bar
+def scoop_card_data(card_query):
+    search_url = f"https://www.pricecharting.com/search-products?q={card_query.replace(' ', '+')}&type=prices"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        response = requests.get(search_url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Get the first result row
+        card = soup.find('tr', id=lambda x: x and x.startswith('product-'))
+        if card:
+            name = card.find('td', class_='title').text.strip()
+            price = card.find('td', class_='numeric').text.strip()
+            img_url = card.find('img')['src'] if card.find('img') else None
+            return {"name": name, "price": price, "img": img_url}
+    except:
+        return None
+    return None
+
+# 3. Memory Setup
 if 'history' not in st.session_state:
     st.session_state.history = []
+if 'search_query' not in st.session_state:
+    st.session_state.search_query = "Togedemaru 104"
 
-# 3. Sidebar (Left Side) - Search History
+# 4. Sidebar (Left) - History
 with st.sidebar:
-    st.title("🕒 Recent Searches")
-    if st.session_state.history:
-        for item in reversed(st.session_state.history):
-            if st.button(item, key=f"hist_{item}", use_container_width=True):
-                st.session_state.search_query = item
-                st.rerun()
-    else:
-        st.write("No history yet.")
+    st.title("🕒 Recent")
+    for item in reversed(st.session_state.history):
+        if st.button(item, key=f"hist_{item}", use_container_width=True):
+            st.session_state.search_query = item
+            st.rerun()
 
-# 4. Main Layout
+# 5. Main Layout
 main_col, fav_col = st.columns([3, 1], gap="large")
 
 with main_col:
     st.title("🎴 Pokémon Card Price Finder")
-    
-    # --- AUTO-LOAD LOGIC ---
-    # If this is the first time opening the app, set default to your favorite
-    if 'search_query' not in st.session_state:
-        st.session_state.search_query = "Togedemaru 104"
-    
-    card_name = st.text_input("Enter Card Name", value=st.session_state.search_query)
+    card_name = st.text_input("Search a card", value=st.session_state.search_query)
 
     if card_name:
         if card_name not in st.session_state.history:
             st.session_state.history.append(card_name)
         
-        with st.spinner(f'Searching for {card_name}...'):
-            search_url = f"https://www.pricecharting.com/search-products?q={card_name.replace(' ', '+')}&type=prices"
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            
-            try:
-                response = requests.get(search_url, headers=headers)
-                soup = BeautifulSoup(response.content, 'html.parser')
-                cards = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
+        with st.spinner('Scooping live data...'):
+            res = scoop_card_data(card_name)
+            if res:
+                c1, c2 = st.columns([1, 2])
+                with c1:
+                    if res['img']: st.image(res['img'], width=250)
+                with c2:
+                    st.header(res['name'])
+                    st.subheader(f"Current Price: {res['price']}")
                 
-                if not cards:
-                    st.warning("No cards found.")
-                else:
-                    for card in cards:
-                        name = card.find('td', class_='title').text.strip()
-                        price = card.find('td', class_='numeric').text.strip()
-                        img_tag = card.find('img')
-                        img_url = img_tag['src'] if img_tag else None
-
-                        c1, c2, c3 = st.columns([1, 3, 1])
-                        with c1:
-                            if img_url: st.image(img_url, width=120)
-                        with c2:
-                            st.subheader(name)
-                        with c3:
-                            st.write(f"### {price}")
-                        st.divider()
-
-                    # Auto-Scroll Script
-                    st.components.v1.html(
-                        """
-                        <script>
-                            window.parent.document.querySelector('section.main').scrollTo({
-                                top: window.parent.document.querySelector('section.main').scrollHeight,
-                                behavior: 'smooth'
-                            });
-                        </script>
-                        """,
-                        height=0,
-                    )
-            except Exception as e:
-                st.error(f"Error: {e}")
+                # Auto-Scroll
+                st.components.v1.html(
+                    "<script>window.parent.document.querySelector('section.main').scrollTo({top: 1000, behavior: 'smooth'});</script>",
+                    height=0
+                )
+            else:
+                st.warning("No results found.")
 
 with fav_col:
     st.markdown("### ⭐ Happyboy457’s favorites")
     
-    # Manually verified high-quality image links
-    my_favs = {
-        "Togedemaru 104": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm6/104.png",
-        "Guzzlord GX SV71": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm8b/SV71.png",
-        "Scizor GX SV72": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm8b/SV72.png",
-        "Zoroark GX 77a": "https://limitlesstcg.s3.us-east-2.amazonaws.com/pokemon/sm35/77a.png"
-    }
+    fav_list = ["Togedemaru 104", "Guzzlord gx sv71", "Scizor GX SV72", "zoroark gx 77a"]
     
-    for name, img_url in my_favs.items():
-        st.image(img_url, use_container_width=True)
-        if st.button(f"Search {name}", key=f"fav_btn_{name}", use_container_width=True):
-            st.session_state.search_query = name
-            st.rerun()
-        st.write("---")
+    for fav in fav_list:
+        data = scoop_card_data(fav)
+        if data:
+            if data['img']: st.image(data['img'], width=150)
+            st.write(f"**{data['name']}**")
+            st.write(f"Price: {data['price']}")
+            if st.button(f"View Details", key=f"btn_{fav}", use_container_width=True):
+                st.session_state.search_query = fav
+                st.rerun()
+            st.divider()
