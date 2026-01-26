@@ -6,25 +6,23 @@ import os
 # 1. Page Configuration
 st.set_page_config(page_title="Happyboy457's TCG Tracker", page_icon="🎴", layout="wide")
 
-# 2. Setup Permanent Folder
+# 2. Setup Permanent Folder for Images
 IMG_DIR = "saved_images"
 if not os.path.exists(IMG_DIR):
     os.makedirs(IMG_DIR)
 
-# 3. The Permanent Scooper
-@st.cache_data(ttl=3600) # Only refresh from web once per hour
+# 3. The "Permanent Scooper" Function
+@st.cache_data(ttl=3600)
 def get_card_data(card_query):
-    # Clean name for file saving (e.g., "Togedemaru_104.jpg")
-    filename = f"{card_query.replace(' ', '_')}.jpg"
-    filepath = os.path.join(IMG_DIR, filename)
+    # Clean name for file saving
+    clean_name = card_query.replace(' ', '_').replace('/', '-')
+    filepath = os.path.join(IMG_DIR, f"{clean_name}.jpg")
     
-    # --- STEP 1: Check if we already have it in the system ---
-    if os.path.exists(filepath):
-        return {"name": card_query, "img": filepath, "is_local": True}
+    # Check if we already have the image saved locally
+    has_local_img = os.path.exists(filepath)
     
-    # --- STEP 2: If not, scoop it from the web ---
     search_url = f"https://www.pricecharting.com/search-products?q={card_query.replace(' ', '+')}&type=prices"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     
     try:
         response = requests.get(search_url, headers=headers, timeout=10)
@@ -34,45 +32,32 @@ def get_card_data(card_query):
         if card:
             name = card.find('td', class_='title').text.strip()
             price = card.find('td', class_='numeric').text.strip()
-            img_url = card.find('img')['src'] if card.find('img') else None
             
-            # --- STEP 3: Save the picture to the system ---
-            if img_url:
-                img_data = requests.get(img_url).content
-                with open(filepath, 'wb') as f:
-                    f.write(img_data)
+            # If we don't have the image yet, download and save it
+            if not has_local_img:
+                img_tag = card.find('img')
+                if img_tag and img_tag.get('src'):
+                    img_url = img_tag['src']
+                    img_data = requests.get(img_url).content
+                    with open(filepath, 'wb') as f:
+                        f.write(img_data)
             
-            return {"name": name, "price": price, "img": filepath, "is_local": False}
-    except:
-        return None
+            return {"name": name, "price": price, "img": filepath}
+    except Exception as e:
+        # If web fails but we have a local image, show that
+        if has_local_img:
+            return {"name": card_query, "price": "Link Busy", "img": filepath}
     return None
 
-# 4. Main Layout & Logic
+# 4. Memory & History Setup
+if 'history' not in st.session_state:
+    st.session_state.history = []
 if 'search_query' not in st.session_state:
     st.session_state.search_query = "Togedemaru 104"
 
-main_col, fav_col = st.columns([3, 1], gap="large")
-
-with main_col:
-    st.title("🎴 Pokémon Card Price Finder")
-    card_name = st.text_input("Search a card", value=st.session_state.search_query)
-
-    if card_name:
-        with st.spinner('Checking system memory...'):
-            res = get_card_data(card_name)
-            if res:
-                c1, c2 = st.columns([1, 2])
-                with c1:
-                    st.image(res['img'], width=300)
-                with c2:
-                    st.header(res['name'])
-                    # If it's local, we might need to scoop just the price again
-                    st.subheader(f"Price: {res.get('price', 'Check Favorites')}")
-            else:
-                st.error("Card not found.")
-
-with fav_col:
-    st.markdown("### ⭐ Happyboy457’s favorites")
-    fav_list = ["Togedemaru 104", "Guzzlord gx sv71", "Scizor GX SV72", "zoroark gx 77a"]
-    
-    for fav in fav_list:
+# 5. Sidebar (Left) - Recent Searches
+with st.sidebar:
+    st.title("🕒 Recent Searches")
+    if st.session_state.history:
+        for item in reversed(st.session_state.history):
+            if st.button(item, key=f"hist_{item}", use_container_
