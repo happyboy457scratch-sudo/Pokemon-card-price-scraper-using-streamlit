@@ -1,65 +1,87 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import time
 
-st.set_page_config(page_title="TCG Price Tracker", page_icon="🎴")
+st.set_page_config(page_title="TCG Price Tracker", page_icon="🎴", layout="wide")
 
-# --- MEMORY (SESSION STATE) SETUP ---
+# --- MEMORY SETUP ---
 if 'history' not in st.session_state:
     st.session_state.history = []
 
-# --- SIDEBAR FOR RECENT SEARCHES ---
-st.sidebar.title("🕒 Recent Searches")
-if st.session_state.history:
+# --- FAVORITES LIST ---
+favorites = [
+    "Togedemaru 104", 
+    "Guzzlord gx sv71", 
+    "Scizor GX SV72", 
+    "zoroark gx 77a"
+]
+
+# --- SIDEBAR (LEFT) ---
+with st.sidebar:
+    st.title("🕒 Recent Searches")
     for item in reversed(st.session_state.history):
-        if st.sidebar.button(item, key=f"btn_{item}"):
-            # This makes clicking a history item search for it again
-            st.rerun() 
-else:
-    st.sidebar.write("No searches yet!")
+        if st.button(item, key=f"hist_{item}"):
+            st.session_state.search_trigger = item
+            st.rerun()
+    
+    if st.button("Clear History"):
+        st.session_state.history = []
+        st.rerun()
 
-if st.sidebar.button("Clear History"):
-    st.session_state.history = []
-    st.rerun()
+# --- MAIN LAYOUT (Creating a 'Right' Side) ---
+# We split the screen into two columns: 3/4 for search, 1/4 for favorites
+main_col, fav_col = st.columns([3, 1], gap="large")
 
-# --- MAIN APP INTERFACE ---
-st.title("🎴 Pokémon Card Price Finder")
+with main_col:
+    st.title("🎴 Pokémon Card Price Finder")
+    
+    # Use a key to allow sidebar buttons to fill this box
+    search_val = st.session_state.get('search_trigger', "")
+    card_name = st.text_input("Card Name (e.g. Charizard)", value=search_val)
 
-card_name = st.text_input("Card Name (e.g. Mewtwo GX)", "")
-
-if card_name:
-    # Add to history if it's a new search
-    if card_name not in st.session_state.history:
-        st.session_state.history.append(card_name)
-        # Keep only the last 10 searches
-        if len(st.session_state.history) > 10:
-            st.session_state.history.pop(0)
-
-    with st.spinner('Fetching cards and images...'):
-        search_url = f"https://www.pricecharting.com/search-products?q={card_name.replace(' ', '+')}&type=prices"
-        headers = {'User-Agent': 'Mozilla/5.0'}
+    if card_name:
+        if card_name not in st.session_state.history:
+            st.session_state.history.append(card_name)
         
-        try:
-            response = requests.get(search_url, headers=headers)
+        with st.spinner('Scraping prices...'):
+            url = f"https://www.pricecharting.com/search-products?q={card_name.replace(' ', '+')}&type=prices"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(url, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
             cards = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
-            
+
             if not cards:
-                st.warning("No cards found. Try being more specific.")
+                st.warning("No cards found.")
             else:
                 for card in cards:
                     name = card.find('td', class_='title').text.strip()
                     price = card.find('td', class_='numeric').text.strip()
-                    img_tag = card.find('img')
-                    img_url = img_tag['src'] if img_tag else None
+                    img_url = card.find('img')['src'] if card.find('img') else None
+                    
+                    c1, c2, c3 = st.columns([1, 2, 1])
+                    if img_url: c1.image(img_url, width=80)
+                    c2.write(f"**{name}**")
+                    c3.write(f"`{price}`")
+                
+                # --- AUTO-SCROLL TRICK ---
+                # This injects a tiny bit of Javascript to scroll to the bottom
+                st.components.v1.html(
+                    """
+                    <script>
+                        window.parent.document.querySelector('section.main').scrollTo({
+                            top: window.parent.document.querySelector('section.main').scrollHeight,
+                            behavior: 'smooth'
+                        });
+                    </script>
+                    """,
+                    height=0,
+                )
 
-                    col1, col2, col3 = st.columns([1, 3, 1])
-                    with col1:
-                        if img_url: st.image(img_url, width=100)
-                    with col2:
-                        st.write(f"### {name}")
-                    with col3:
-                        st.write(f"## {price}")
-                    st.divider()
-        except Exception as e:
-            st.error(f"Something went wrong: {e}")
+with fav_col:
+    st.markdown("### ⭐ My Favorites")
+    st.info("Click to search quickly!")
+    for fav in favorites:
+        if st.button(f"🔍 {fav}", key=f"fav_{fav}", use_container_width=True):
+            st.session_state.search_trigger = fav
+            st.rerun()
