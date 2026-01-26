@@ -96,4 +96,4 @@ with fav_col:
     
     for fav in my_favs:
         # If a favorite is clicked, update the search query and rerun
-        if st.button(f"🔍 {fav}", key
+        if st.button(f"🔍 {fav}", key=f"fav_{fav}", use_container_width=True):
