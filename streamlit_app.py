@@ -20,7 +20,7 @@ def scoop_market_price(card_query):
         return "N/A"
     return "N/A"
 
-# 3. Sidebar/Favorites Data
+# 3. Sidebar/Favorites Data (Updated Queries for Accuracy)
 my_collection = [
     {"name": "Reshiram GX", "id": "SV51/SV94", "image": "reshiram.jpg", "query": "Reshiram GX SV51"},
     {"name": "Scizor GX", "id": "SV72/SV94", "image": "scizor.jpg", "query": "Scizor GX SV72"},
@@ -54,7 +54,8 @@ with main_col:
         st.info("Select a card from your favorites to view its HD art and live price.")
 
 with fav_col:
-    st.markdown("### ⭐ My Collection")
+    # UPDATED HEADING HERE
+    st.markdown("### ⭐ Happyboy457’s Favorites")
     for card in my_collection:
         # Show your uploaded photo as a thumbnail
         if os.path.exists(card['image']):
