@@ -3,71 +3,80 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-# --- AUTH0 GATEKEEPER ---
+# 1. AUTH0 GATEKEEPER
+# This checks if the user is authenticated via st.user
 if not st.user.is_logged_in:
-    st.title("🔒 TCG Member Access")
-    if st.button("Log in"):
-        st.login("auth0")
-    st.stop()
+    st.title("🔒 TCG Price Tracker")
+    st.info("Please log in to access the Pokémon price scraper.")
+    if st.button("Log in with Google/Email"):
+        st.login("auth0") # Matches your [auth.auth0] secrets
+    st.stop()  # Important: This stops the scraper from running for guests
 
-# --- SCRAPER WITH IMAGE SUPPORT ---
+# --- EVERYTHING BELOW RUNS ONLY AFTER LOGIN ---
+
+# 2. LOGGED-IN UI
+col1, col2 = st.columns([4, 1])
+with col1:
+    st.title("🎴 Pokémon Price Scraper")
+with col2:
+    if st.button("Log out"):
+        st.logout()
+
+st.write(f"Logged in as: **{st.user.name}**")
+st.divider()
+
+# 3. THE ORIGINAL SCRAPING LOGIC
 def scrape_pokemon_data(card_query):
-    # Using PriceCharting as the example source
     search_url = f"https://www.pricecharting.com/search-products?q={card_query.replace(' ', '+')}&type=prices"
-    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # We use these headers to make the scraper look like a real person browsing
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    }
     
     try:
-        response = requests.get(search_url, headers=headers)
+        response = requests.get(search_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
         
         cards = []
-        # Finding the rows in the results table
-        rows = soup.select("table#main_table tr")[1:] 
+        # Find the main results table
+        table = soup.find("table", {"id": "main_table"})
         
-        for row in rows[:5]: # Let's stick to top 5 results to keep it fast
-            cols = row.find_all("td")
-            if len(cols) > 1:
-                name = cols[0].text.strip()
-                price = cols[2].text.strip()
-                
-                # --- PICTURE LOGIC ---
-                # We look for the image tag within the row
-                img_tag = row.find("img")
-                # Some sites use 'src', others use 'data-src' for lazy loading
-                img_url = img_tag.get("src") if img_tag else None
-                
-                cards.append({
-                    "Name": name, 
-                    "Price": price, 
-                    "Image": img_url
-                })
-        
+        if table:
+            rows = table.select("tr")[1:] # Skip the header row
+            for row in rows[:5]: # Take top 5 results
+                cols = row.find_all("td")
+                if len(cols) >= 3:
+                    name = cols[0].text.strip()
+                    price = cols[2].text.strip()
+                    
+                    # Extract the image URL
+                    img_tag = row.find("img")
+                    img_url = img_tag.get("src") if img_tag else None
+                    
+                    cards.append({"Name": name, "Price": price, "Image": img_url})
         return cards
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Scraper error: {e}")
         return []
 
-# --- USER INTERFACE ---
-st.title("🎴 Pokémon Card Price Scraper")
-query = st.text_input("Search for a card:", placeholder="e.g. Pikachu VMAX")
+# 4. APP INTERFACE
+query = st.text_input("Enter Card Name:", placeholder="e.g. Charizard Base Set")
 
-if st.button("Search"):
-    results = scrape_pokemon_data(query)
-    
-    if results:
-        for card in results:
-            # Create a clean layout for each card
-            with st.container(border=True):
-                col1, col2 = st.columns([1, 2])
-                
-                with col1:
-                    if card["Image"]:
-                        st.image(card["Image"], width=150)
-                    else:
-                        st.write("No image found")
-                
-                with col2:
-                    st.subheader(card["Name"])
-                    st.metric("Market Price", card["Price"])
-    else:
-        st.warning("No results found. Try a different search.")
+if st.button("Search Prices"):
+    if query:
+        with st.spinner("Scraping latest prices..."):
+            results = scrape_pokemon_data(query)
+            
+            if results:
+                for card in results:
+                    with st.container(border=True):
+                        c1, c2 = st.columns([1, 2])
+                        with c1:
+                            if card["Image"]:
+                                st.image(card["Image"], width=120)
+                        with c2:
+                            st.subheader(card["Name"])
+                            st.metric("Ungraded Price", card["Price"])
+            else:
+                st.warning("No cards found. Try being more specific.")
