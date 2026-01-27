@@ -5,16 +5,21 @@ import requests
 from bs4 import BeautifulSoup
 
 # --- 1. INITIALIZE FIREBASE ---
-if not firebase_admin._apps:
-    try:
-        firebase_info = dict(st.secrets["firebase_service_account"])
-        # This line "cleans" the key of any weird spacing issues
-        firebase_info["private_key"] = firebase_info["private_key"].replace('\\n', '\n').strip()
-        
-        cred = credentials.Certificate(firebase_info)
-    except Exception as e:
-        st.error(f"Actual Error: {e}") # This will tell us exactly what is wrong
-        st.stop()
+def init_firebase():
+    if not firebase_admin._apps:
+        try:
+            # Pulls from Streamlit Secrets
+            fb_creds = dict(st.secrets["firebase_service_account"])
+            # Fixes the private key formatting
+            fb_creds["private_key"] = fb_creds["private_key"].replace('\\n', '\n').strip()
+            
+            cred = credentials.Certificate(fb_creds)
+            firebase_admin.initialize_app(cred)
+        except Exception as e:
+            st.error(f"Firebase failed to load: {e}")
+            st.stop()
+
+init_firebase()
 
 # --- 2. LIVE INTERNET SCRAPER ---
 def scoop_prices(query):
@@ -24,6 +29,7 @@ def scoop_prices(query):
         response = requests.get(search_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.content, 'html.parser')
         rows = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
+        
         results = []
         for row in rows[:3]:
             name = row.find('td', class_='title').text.strip()
@@ -48,30 +54,14 @@ if 'user' not in st.session_state:
         if st.button("Log In"):
             if login_email:
                 try:
+                    # Verification check
                     user = auth.get_user_by_email(login_email)
                     st.session_state.user = user.uid
                     st.session_state.email = login_email
                     st.rerun()
                 except Exception as e:
-                    st.error("Invalid email or user does not exist.")
+                    st.error("Login failed. Check your email or create an account.")
             else:
-                st.warning("Please enter an email address.")
+                st.warning("Please enter an email.")
 
     with tab2:
-        new_email = st.text_input("New Email", key="s_email")
-        new_pass = st.text_input("New Password", type="password", key="s_pass")
-        if st.button("Register Account"):
-            try:
-                user = auth.create_user(email=new_email, password=new_pass)
-                st.success("Account created! Now go to the Login tab.")
-            except Exception as e:
-                st.error(f"Error creating account: {e}")
-    st.stop()
-
-# --- 4. THE MAIN APP (Only shows after Login) ---
-st.title(f"Welcome back, {st.session_state.email}!")
-
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    search_query = st.text_input("🔍 Search any card on the internet:", placeholder="e.g. Umbreon VMAX 215")
