@@ -4,3 +4,4 @@ requests
 streamlit-authenticator
 firebase-admin
 streamlit-google-auth
+from firebase_admin import credentials, auth
