@@ -13,7 +13,7 @@ if not firebase_admin._apps:
         firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"Actual Error: {e}") # This will tell us exactly what is wrong
-        st.stop())
+        st.stop()
 
 # --- 2. LIVE INTERNET SCRAPER ---
 def scoop_prices(query):
