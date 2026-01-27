@@ -77,4 +77,4 @@ if 'user' not in st.session_state:
 
 # --- 4. THE MAIN APP (Only visible when logged in) ---
 st.set_page_config(page_title="PokéTracker", layout="wide")
-st.title(
+st.write("Favorites will appear here soon!")
