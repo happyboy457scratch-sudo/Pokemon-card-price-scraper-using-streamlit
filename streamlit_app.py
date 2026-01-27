@@ -71,5 +71,18 @@ st.title(f"🔍 Welcome, {st.session_state.email}!")
 
 def get_prices(name):
     url = f"https://www.pricecharting.com/search-products?q={name.replace(' ', '+')}&type=prices"
+    # Make sure this line below ends with '})
+    headers = {'User-Agent': 'Mozilla/5.0'} 
     try:
-        res = requests.get(url, headers={'User-Agent': 'Mozilla/5.
+        res = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(res.content, 'html.parser')
+        rows = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
+        results = []
+        for r in rows[:3]:
+            title = r.find('td', class_='title').text.strip()
+            price = r.find('td', class_='numeric').text.strip()
+            img = r.find('img')['src'] if r.find('img') else None
+            results.append({"name": title, "price": price, "img": img})
+        return results
+    except Exception as e:
+        return None
