@@ -29,11 +29,14 @@ def scoop_prices(query):
         
         results = []
         for row in rows[:3]:
-            name = row.find('td', class_='title').text.strip()
-            price = row.find('td', class_='numeric').text.strip()
-            img_tag = row.find('img')
-            img_url = img_tag['src'] if img_tag else None
-            results.append({"name": name, "price": price, "img": img_url})
+            name_el = row.find('td', class_='title')
+            price_el = row.find('td', class_='numeric')
+            if name_el and price_el:
+                name = name_el.text.strip()
+                price = price_el.text.strip()
+                img_tag = row.find('img')
+                img_url = img_tag['src'] if img_tag else None
+                results.append({"name": name, "price": price, "img": img_url})
         return results
     except Exception:
         return None
@@ -41,7 +44,7 @@ def scoop_prices(query):
 # --- 3. ACCOUNT UI (The Login Gate) ---
 if 'user' not in st.session_state:
     st.title("🎴 Pokémon Price Tracker")
-    st.subheader("Login or Create an Account to continue")
+    st.subheader("Login or Create an Account")
     
     tab1, tab2 = st.tabs(["Login", "Create Account"])
     
@@ -49,9 +52,8 @@ if 'user' not in st.session_state:
         login_email = st.text_input("Email", key="l_email")
         login_pass = st.text_input("Password", type="password", key="l_pass")
         
-        col_login, col_google = st.columns(2)
-        
-        with col_login:
+        col_fb, col_gg = st.columns(2)
+        with col_fb:
             if st.button("Log In", use_container_width=True):
                 if login_email:
                     try:
@@ -60,14 +62,13 @@ if 'user' not in st.session_state:
                         st.session_state.email = login_email
                         st.rerun()
                     except Exception:
-                        st.error("Login failed. Check your email or create an account.")
+                        st.error("Login failed. Check your email or credentials.")
                 else:
                     st.warning("Please enter an email.")
         
-        with col_google:
-            # This is a styled button to mimic Google Sign-In
-            if st.button("Sign in with Google", type="secondary", use_container_width=True):
-                st.info("Google Sign-In requires Oauth2 Client ID configuration in Google Cloud Console.")
+        with col_gg:
+            if st.button("🌐 Google Sign-In", use_container_width=True):
+                st.warning("Final Step: Ensure 'client_id' is set in your Cloud Console Credentials!")
 
     with tab2:
         new_email = st.text_input("New Email", key="s_email")
@@ -76,29 +77,36 @@ if 'user' not in st.session_state:
             if new_email and len(new_pass) >= 6:
                 try:
                     user = auth.create_user(email=new_email, password=new_pass)
-                    st.success("✅ Account created! You can now use the Login tab.")
+                    st.success("✅ Account created! Now go to the Login tab.")
                 except Exception as e:
                     st.error(f"Error: {e}")
             else:
-                st.warning("Password must be at least 6 characters.")
+                st.warning("Password must be 6+ characters.")
     
+    st.markdown("---")
+    st.caption("Privacy Policy & Terms: [View Policy](https://gist.github.com)")
     st.stop() 
 
-# --- 4. THE MAIN APP (Only visible when logged in) ---
+# --- 4. THE MAIN APP ---
 st.set_page_config(page_title="PokéTracker", layout="wide")
 st.title(f"🔍 PokéTracker: Welcome {st.session_state.email}")
 
-# Sidebar
 with st.sidebar:
+    st.success("Firebase Ready")
+    st.write(f"User: **{st.session_state.email}**")
     if st.button("Log Out"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
+    
+    st.divider()
+    st.write("🔧 **Google Auth Debugger**")
+    st.caption("Status: Configuration Pending")
 
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    search_query = st.text_input("Search for a card:", placeholder="e.g., Pikachu VMAX")
+    search_query = st.text_input("Search for a card:", placeholder="e.g., Charizard Base Set")
     if search_query:
         with st.spinner("Searching..."):
             cards = scoop_prices(search_query)
@@ -116,4 +124,4 @@ with col1:
 
 with col2:
     st.subheader("⭐ Favorites")
-    st.write("Favorites will appear here soon!")
+    st.write("Save cards here soon!")
