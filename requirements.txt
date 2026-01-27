@@ -3,3 +3,4 @@ beautifulsoup4
 requests
 streamlit-authenticator
 firebase-admin
+streamlit-google-auth
