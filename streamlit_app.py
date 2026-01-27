@@ -1,88 +1,73 @@
 import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, auth
 import requests
 from bs4 import BeautifulSoup
-import urllib.parse
-st.html('<meta name="google-site-verification: google375a8ac750f96ee1.html" />')
-# --- 1. FIREBASE SETUP ---
-if not firebase_admin._apps:
-    try:
-        fb_creds = dict(st.secrets["firebase_service_account"])
-        fb_creds["private_key"] = fb_creds["private_key"].replace('\\n', '\n').strip()
-        cred = credentials.Certificate(fb_creds)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"Firebase Config Error: {e}")
-        st.stop()
+import pandas as pd
 
-# --- 2. GOOGLE LOGIN LOGIC ---
-# This part checks the URL to see if Google just sent the user back
-query_params = st.query_params
-if "access_token" in query_params or "id_token" in query_params:
-    # If a token is found, we "log in" the user in the session
-    st.session_state.user = "google_user"
-    st.session_state.email = "Google User" # In a real app, you'd decode the token for the real email
-
-# Build the Google Login URL
-params = {
-    "client_id": st.secrets["google_client_id"],
-    "redirect_uri": "https://tcgpricechecking.streamlit.app",
-    "response_type": "token",
-    "scope": "openid email profile",
-}
-google_login_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urllib.parse.urlencode(params)}"
-
-# --- 3. LOGIN PAGE UI ---
-if 'user' not in st.session_state:
-    st.title("🎴 PokéTracker")
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
-
-    with tab1:
-        email = st.text_input("Email")
-        pw = st.text_input("Password", type="password")
-        if st.button("Log In", use_container_width=True):
-            try:
-                user = auth.get_user_by_email(email)
-                st.session_state.user = user.uid
-                st.session_state.email = email
-                st.rerun()
-            except:
-                st.error("Login failed.")
-        
-        st.divider()
-        # REAL WORKING LINK BUTTON
-        st.link_button("🌐 Sign in with Google", google_login_url, use_container_width=True)
-
-    with tab2:
-        new_email = st.text_input("New Email")
-        new_pw = st.text_input("New Password", type="password")
-        if st.button("Create Account", use_container_width=True):
-            try:
-                auth.create_user(email=new_email, password=new_pw)
-                st.success("Account created! Go to Login tab.")
-            except Exception as e:
-                st.error(f"Error: {e}")
+# 1. AUTHENTICATION CHECK (The Gatekeeper)
+# This section ensures that if you aren't logged in, 
+# the rest of the script NEVER runs.
+if not st.user.is_logged_in:
+    st.title("🔒 TCG Price Checker")
+    st.write("Welcome! Please log in with your Google account to access the scraper.")
+    
+    # This triggers the login flow using the secrets you saved
+    if st.button("Log in with Google"):
+        st.login("google")
+    
+    # MANDATORY: Stop execution so the scraper doesn't try to load
     st.stop()
 
-# --- 4. MAIN APP (Price Scraper) ---
-st.set_page_config(page_title="PokéTracker", layout="wide")
-st.title(f"🔍 Welcome, {st.session_state.email}!")
+# --- EVERYTHING BELOW ONLY RUNS AFTER SUCCESSFUL LOGIN ---
 
-def get_prices(name):
-    url = f"https://www.pricecharting.com/search-products?q={name.replace(' ', '+')}&type=prices"
-    # Make sure this line below ends with '})
-    headers = {'User-Agent': 'Mozilla/5.0'} 
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        soup = BeautifulSoup(res.content, 'html.parser')
-        rows = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
-        results = []
-        for r in rows[:3]:
-            title = r.find('td', class_='title').text.strip()
-            price = r.find('td', class_='numeric').text.strip()
-            img = r.find('img')['src'] if r.find('img') else None
-            results.append({"name": title, "price": price, "img": img})
-        return results
-    except Exception as e:
-        return None
+# 2. APP HEADER & LOGOUT
+st.set_page_config(page_title="Pokémon Price Scraper", page_icon="🎴")
+
+col1, col2 = st.columns([4, 1])
+with col1:
+    st.title("🎴 Pokémon Card Price Scraper")
+    st.write(f"Hello, **{st.user.name}**! Happy hunting.")
+with col2:
+    if st.button("Log out"):
+        st.logout()
+
+st.divider()
+
+# 3. SCRAPER LOGIC
+# Example scraper for PriceCharting or similar TCG sites
+card_query = st.text_input("Enter Card Name (e.g., Charizard Base Set):", placeholder="Charizard...")
+
+if st.button("Search Prices"):
+    if card_query:
+        with st.spinner(f"Searching for '{card_query}'..."):
+            try:
+                # Clean the query for the URL
+                search_url = f"https://www.pricecharting.com/search-products?q={card_query.replace(' ', '+')}&type=prices"
+                
+                header = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                response = requests.get(search_url, headers=header)
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # This logic depends on the specific site's HTML structure
+                # This is a generic example of finding a table of results
+                results = []
+                table = soup.find('table', {'id': 'products_table'})
+                
+                if table:
+                    rows = table.find_all('tr')[1:] # Skip header
+                    for row in rows:
+                        name = row.find('td', {'class': 'title'}).text.strip()
+                        price = row.find('td', {'class': 'price'}).text.strip()
+                        results.append({"Card Name": name, "Current Price": price})
+                    
+                    df = pd.DataFrame(results)
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.error("No cards found. Try being more specific (e.g., 'Pikachu 58/102').")
+                    
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+    else:
+        st.warning("Please enter a card name first.")
+
+# 4. FOOTER
+st.info("Note: Scraper results depend on the live data from the TCG provider.")
