@@ -51,4 +51,4 @@ if 'user' not in st.session_state:
     
     with tab1:
         login_email = st.text_input("Email", key="l_email")
-        login_pass = st.text_input("Password", type="password
+        login_pass = st.text_input("Password", type="password", key="l_pass")
