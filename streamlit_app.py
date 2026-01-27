@@ -4,7 +4,7 @@ from firebase_admin import credentials, auth
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
-st.html(google-site-verification: google375a8ac750f96ee1.html)
+st.html('<meta name="google-site-verification" content="google375a8ac750f96ee1" />')
 # --- 1. FIREBASE SETUP ---
 if not firebase_admin._apps:
     try:
