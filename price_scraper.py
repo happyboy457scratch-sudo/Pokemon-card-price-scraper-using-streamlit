@@ -1,59 +1,59 @@
 import requests
 from bs4 import BeautifulSoup
 import statistics
-import re
 
 def get_ebay_market_data(card_name):
-    """
-    Scrapes eBay sold listings and returns a cleaned market average.
-    """
-    # 1. Target SOLD and COMPLETED listings specifically
-    search_url = f"https://www.ebay.com/sch/i.html?_nkw={card_name.replace(' ', '+')}+pokemon+card&LH_Sold=1&LH_Complete=1"
+    # Adding "pokemon card" to the search helps eBay's algorithm
+    query = f"{card_name} pokemon card"
+    url = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}&LH_Sold=1&LH_Complete=1"
     
-    # 2. Browser Disguise (Headers) to prevent getting blocked
+    # A more robust "User-Agent" to look like a modern browser
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/"
     }
 
     try:
-        response = requests.get(search_url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        # If eBay blocks us, we'll see a 403 or 503 error
         if response.status_code != 200:
-            return None, "Connection Error"
+            return None, f"eBay blocked the request (Error {response.status_code})"
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        # eBay's price class for search results
-        price_elements = soup.find_all('span', {'class': 's-item__price'})
+        
+        # eBay often changes its CSS classes. We try multiple known price classes.
+        price_tags = soup.select('.s-item__price') 
         
         valid_prices = []
-        for item in price_elements:
-            # Remove $, commas, and handle "to" ranges
-            raw_text = item.get_text().replace('$', '').replace(',', '')
-            if 'to' in raw_text:
-                raw_text = raw_text.split('to')[0]
+        for tag in price_tags:
+            text = tag.get_text().replace('$', '').replace(',', '').strip()
+            # Handle price ranges like "10.00 to 12.00"
+            if 'to' in text:
+                text = text.split('to')[0].strip()
             
             try:
-                price_val = float(raw_text.strip())
-                # Filter out 'noise' like $0.99 shipping-only listings
-                if price_val > 1.0:
+                price_val = float(text)
+                # Filter out outliers (like $0.99 items or extreme high ends)
+                if 1.0 < price_val < 10000.0:
                     valid_prices.append(price_val)
             except ValueError:
                 continue
 
+        # eBay search results often include a "hidden" first item that is an ad
+        # We skip the first one if the list is long enough
+        if len(valid_prices) > 1:
+            valid_prices = valid_prices[1:]
+
         if not valid_prices:
-            return None, "No Sales Found"
+            return None, "No recent sold listings found."
 
-        # 3. PriceCharting Logic: Trim the outliers
-        # We remove the highest and lowest 10% to get a 'true' middle price
-        valid_prices.sort()
-        if len(valid_prices) > 5:
-            trim_count = max(1, len(valid_prices) // 10)
-            cleaned_list = valid_prices[trim_count:-trim_count]
-        else:
-            cleaned_list = valid_prices
-
-        market_avg = statistics.mean(cleaned_list)
+        # Average the most recent 10 sales
+        final_list = valid_prices[:10]
+        market_avg = statistics.mean(final_list)
+        
         return round(market_avg, 2), len(valid_prices)
 
     except Exception as e:
-        return None, str(e)
+        return None, f"Connection failed: {str(e)}"
