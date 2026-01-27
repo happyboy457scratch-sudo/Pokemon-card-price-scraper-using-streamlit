@@ -1,127 +1,32 @@
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, auth
-import requests
-from bs4 import BeautifulSoup
 
-# --- 1. INITIALIZE FIREBASE ---
-def init_firebase():
-    if not firebase_admin._apps:
-        try:
-            fb_creds = dict(st.secrets["firebase_service_account"])
-            fb_creds["private_key"] = fb_creds["private_key"].replace('\\n', '\n').strip()
-            cred = credentials.Certificate(fb_creds)
-            firebase_admin.initialize_app(cred)
-        except Exception as e:
-            st.error(f"Firebase failed to load: {e}")
-            st.stop()
+# --- FIREBASE SETUP ---
+if not firebase_admin._apps:
+    fb_creds = dict(st.secrets["firebase_service_account"])
+    fb_creds["private_key"] = fb_creds["private_key"].replace('\\n', '\n').strip()
+    cred = credentials.Certificate(fb_creds)
+    firebase_admin.initialize_app(cred)
 
-init_firebase()
-
-# --- 2. LIVE INTERNET SCRAPER ---
-def scoop_prices(query):
-    search_url = f"https://www.pricecharting.com/search-products?q={query.replace(' ', '+')}&type=prices"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        response = requests.get(search_url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.content, 'html.parser')
-        rows = soup.find_all('tr', id=lambda x: x and x.startswith('product-'))
-        
-        results = []
-        for row in rows[:3]:
-            name_el = row.find('td', class_='title')
-            price_el = row.find('td', class_='numeric')
-            if name_el and price_el:
-                name = name_el.text.strip()
-                price = price_el.text.strip()
-                img_tag = row.find('img')
-                img_url = img_tag['src'] if img_tag else None
-                results.append({"name": name, "price": price, "img": img_url})
-        return results
-    except Exception:
-        return None
-
-# --- 3. ACCOUNT UI (The Login Gate) ---
-if 'user' not in st.session_state:
-    st.title("🎴 Pokémon Price Tracker")
-    st.subheader("Login or Create an Account")
-    
-    tab1, tab2 = st.tabs(["Login", "Create Account"])
-    
-    with tab1:
-        login_email = st.text_input("Email", key="l_email")
-        login_pass = st.text_input("Password", type="password", key="l_pass")
-        
-        col_fb, col_gg = st.columns(2)
-        with col_fb:
-            if st.button("Log In", use_container_width=True):
-                if login_email:
-                    try:
-                        user = auth.get_user_by_email(login_email)
-                        st.session_state.user = user.uid
-                        st.session_state.email = login_email
-                        st.rerun()
-                    except Exception:
-                        st.error("Login failed. Check your email or credentials.")
-                else:
-                    st.warning("Please enter an email.")
-        
-        with col_gg:
-            if st.button("🌐 Google Sign-In", use_container_width=True):
-                st.warning("Final Step: Ensure 'client_id' is set in your Cloud Console Credentials!")
-
-    with tab2:
-        new_email = st.text_input("New Email", key="s_email")
-        new_pass = st.text_input("New Password", type="password", key="s_pass")
-        if st.button("Register Account", use_container_width=True):
-            if new_email and len(new_pass) >= 6:
-                try:
-                    user = auth.create_user(email=new_email, password=new_pass)
-                    st.success("✅ Account created! Now go to the Login tab.")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-            else:
-                st.warning("Password must be 6+ characters.")
-    
-    st.markdown("---")
-    st.caption("Privacy Policy & Terms: [View Policy](https://gist.github.com)")
-    st.stop() 
-
-# --- 4. THE MAIN APP ---
+# --- APP LAYOUT ---
 st.set_page_config(page_title="PokéTracker", layout="wide")
-st.title(f"🔍 PokéTracker: Welcome {st.session_state.email}")
 
-with st.sidebar:
-    st.success("Firebase Ready")
-    st.write(f"User: **{st.session_state.email}**")
-    if st.button("Log Out"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
+if 'user' not in st.session_state:
+    st.title("🎴 PokéTracker")
     
-    st.divider()
-    st.write("🔧 **Google Auth Debugger**")
-    st.caption("Status: Configuration Pending")
+    # Check if you added the ID to secrets
+    if "google_client_id" in st.secrets:
+        if st.button("🌐 Sign in with Google", use_container_width=True):
+            # This is where the magic happens!
+            st.info("Redirecting to Google... Check for a pop-up window.")
+    else:
+        st.error("Google Client ID not found in Streamlit Secrets.")
+    
+    st.stop()
 
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    search_query = st.text_input("Search for a card:", placeholder="e.g., Charizard Base Set")
-    if search_query:
-        with st.spinner("Searching..."):
-            cards = scoop_prices(search_query)
-            if cards:
-                for c in cards:
-                    with st.container(border=True):
-                        c_img, c_info = st.columns([1, 3])
-                        with c_img:
-                            if c['img']: st.image(c['img'])
-                        with c_info:
-                            st.subheader(c['name'])
-                            st.write(f"### {c['price']}")
-            else:
-                st.info("No cards found.")
-
-with col2:
-    st.subheader("⭐ Favorites")
-    st.write("Save cards here soon!")
+# --- MAIN LOGIC (Visible after login) ---
+st.success(f"Welcome back, Trainer!")
+if st.button("Log Out"):
+    st.session_state.clear()
+    st.rerun()
