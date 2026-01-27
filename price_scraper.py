@@ -1,42 +1,30 @@
 import requests
-from bs4 import BeautifulSoup
-import statistics
 
-def get_ebay_market_data(card_name):
-    # This URL uses the '_rss' format which is meant for data reading
-    query = f"{card_name} pokemon card"
-    url = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}&LH_Sold=1&LH_Complete=1&_rss=1"
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
-    }
-
+def get_market_price(card_name):
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        # RSS feeds use XML format
-        soup = BeautifulSoup(response.content, 'xml')
+        # 1. Search for the card to get its unique ID
+        search_url = f"https://api.tcgdex.net/v2/en/cards?name={card_name}"
+        search_response = requests.get(search_url, timeout=10)
+        cards = search_response.json()
+
+        if not cards:
+            return None, "Card not found in database."
+
+        # 2. Get the specific price for the first match
+        card_id = cards[0]['id']
+        detail_url = f"https://api.tcgdex.net/v2/en/cards/{card_id}"
+        detail_response = requests.get(detail_url, timeout=10)
+        data = detail_response.json()
+
+        # 3. Dig into the TCGplayer price (Standard 'Market' Price)
+        pricing = data.get('pricing', {}).get('tcgplayer', {})
         
-        # In RSS, prices are usually tucked inside the 'description' or 'title'
-        # We look for all text that looks like a price (e.g., $15.50)
-        items = soup.find_all('item')
+        # Check for Normal or Holo prices
+        market_price = pricing.get('normal', {}).get('market') or pricing.get('holofoil', {}).get('market')
+
+        if market_price:
+            return market_price, "Success"
+        return None, "Price data currently unavailable for this card."
         
-        valid_prices = []
-        for item in items:
-            title = item.title.text if item.title else ""
-            # Some RSS feeds put the price in the title: "Charizard - $50.00"
-            price_search = [float(s) for s in title.replace('$', '').replace(',', '').split() if s.replace('.', '', 1).isdigit()]
-            
-            if price_search:
-                price_val = price_search[0]
-                if 1.0 < price_val < 5000.0:
-                    valid_prices.append(price_val)
-
-        if not valid_prices:
-            return None, "eBay RSS returned no items."
-
-        # Average the results
-        market_avg = statistics.mean(valid_prices[:10])
-        return round(market_avg, 2), len(valid_prices)
-
     except Exception as e:
         return None, f"Error: {str(e)}"
