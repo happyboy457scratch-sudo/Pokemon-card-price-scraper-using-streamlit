@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 # --- 1. INITIALIZE FIREBASE ---
 if not firebase_admin._apps:
     try:
-        firebase_info = dict(st.secrets["firebase_service_account"])firebase_info = dict(st.secrets["firebase_service_account"])
+        firebase_info = dict(st.secrets["firebase_service_account"])
         # This line "cleans" the key of any weird spacing issues
         firebase_info["private_key"] = firebase_info["private_key"].replace('\\n', '\n').strip()
         
