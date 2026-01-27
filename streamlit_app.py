@@ -48,22 +48,31 @@ if 'user' not in st.session_state:
     with tab1:
         login_email = st.text_input("Email", key="l_email")
         login_pass = st.text_input("Password", type="password", key="l_pass")
-        if st.button("Log In"):
-            if login_email:
-                try:
-                    user = auth.get_user_by_email(login_email)
-                    st.session_state.user = user.uid
-                    st.session_state.email = login_email
-                    st.rerun()
-                except Exception:
-                    st.error("Login failed. Check your email or create an account.")
-            else:
-                st.warning("Please enter an email.")
+        
+        col_login, col_google = st.columns(2)
+        
+        with col_login:
+            if st.button("Log In", use_container_width=True):
+                if login_email:
+                    try:
+                        user = auth.get_user_by_email(login_email)
+                        st.session_state.user = user.uid
+                        st.session_state.email = login_email
+                        st.rerun()
+                    except Exception:
+                        st.error("Login failed. Check your email or create an account.")
+                else:
+                    st.warning("Please enter an email.")
+        
+        with col_google:
+            # This is a styled button to mimic Google Sign-In
+            if st.button("Sign in with Google", type="secondary", use_container_width=True):
+                st.info("Google Sign-In requires Oauth2 Client ID configuration in Google Cloud Console.")
 
     with tab2:
         new_email = st.text_input("New Email", key="s_email")
         new_pass = st.text_input("New Password", type="password", key="s_pass")
-        if st.button("Register Account"):
+        if st.button("Register Account", use_container_width=True):
             if new_email and len(new_pass) >= 6:
                 try:
                     user = auth.create_user(email=new_email, password=new_pass)
@@ -73,8 +82,38 @@ if 'user' not in st.session_state:
             else:
                 st.warning("Password must be at least 6 characters.")
     
-    st.stop() # This forces the app to wait for login
+    st.stop() 
 
 # --- 4. THE MAIN APP (Only visible when logged in) ---
 st.set_page_config(page_title="PokéTracker", layout="wide")
-st.write("Favorites will appear here soon!")
+st.title(f"🔍 PokéTracker: Welcome {st.session_state.email}")
+
+# Sidebar
+with st.sidebar:
+    if st.button("Log Out"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    search_query = st.text_input("Search for a card:", placeholder="e.g., Pikachu VMAX")
+    if search_query:
+        with st.spinner("Searching..."):
+            cards = scoop_prices(search_query)
+            if cards:
+                for c in cards:
+                    with st.container(border=True):
+                        c_img, c_info = st.columns([1, 3])
+                        with c_img:
+                            if c['img']: st.image(c['img'])
+                        with c_info:
+                            st.subheader(c['name'])
+                            st.write(f"### {c['price']}")
+            else:
+                st.info("No cards found.")
+
+with col2:
+    st.subheader("⭐ Favorites")
+    st.write("Favorites will appear here soon!")
