@@ -12,8 +12,8 @@ if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_info)
         firebase_admin.initialize_app(cred)
     except Exception as e:
-        st.error("Firebase failed to load. Check your Secrets formatting!")
-        st.stop()
+        st.error(f"Actual Error: {e}") # This will tell us exactly what is wrong
+        st.stop())
 
 # --- 2. LIVE INTERNET SCRAPER ---
 def scoop_prices(query):
