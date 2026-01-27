@@ -50,11 +50,17 @@ if 'user' not in st.session_state:
         login_pass = st.text_input("Password", type="password", key="l_pass")
         if st.button("Log In"):
             # In a real app, you'd verify the password via Firebase Auth REST API
-            # For now, we check if the user exists
-            try:
-                user = auth.get_user_by_email(login_email)
-                st.session_state.user = user.uid
-                st.session_state.email = login_email
-                st.rerun()
-            except:
-                st.error("Invalid email
+        with tab1:
+        login_email = st.text_input("Email", key="l_email")
+        login_pass = st.text_input("Password", type="password", key="l_pass")
+        if st.button("Log In"):
+            if login_email:
+                try:
+                    user = auth.get_user_by_email(login_email)
+                    st.session_state.user = user.uid
+                    st.session_state.email = login_email
+                    st.rerun()
+                except Exception as e:
+                    st.error("Invalid email or user does not exist.")
+            else:
+                st.warning("Please enter an email address.")
