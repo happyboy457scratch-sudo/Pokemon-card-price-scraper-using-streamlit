@@ -73,4 +73,4 @@ st.title(f"Welcome back, {st.session_state.email}!")
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    search_query = st.text_input("🔍 Search any card on the internet:", placeholder
+    search_query = st.text_input("🔍 Search any card on the internet:", placeholder="e.g. Umbreon VMAX 215")
