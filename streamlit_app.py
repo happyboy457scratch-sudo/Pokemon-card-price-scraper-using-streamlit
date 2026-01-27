@@ -1,91 +1,61 @@
 import streamlit as st
 import requests
+from bs4 import BeautifulSoup
+import statistics
 
-# --- 1. THE ACCOUNT PART (Auth0 Gatekeeper) ---
-if not st.user.is_logged_in:
-    st.title("⚡Pokemon Card Price Tracker⚡")
-    st.info("Log in to use the price tracker, we won't send you any spam.")
-    if st.button("Log In with google or email!"):
-        st.login("auth0")
-    st.stop()
+st.set_page_config(page_title="Pocket PriceCharting", page_icon="📈")
 
-# --- 2. USER DASHBOARD (Sidebar) ---
-with st.sidebar:
-    st.success(f"Trainer: {st.user.name}")
-    st.write(f"Email: {st.user.email}")
-    if st.button("Logout"):
-        st.logout()
+st.title("📈 Pocket PriceCharting")
+st.write("Real-time market value based on recent eBay sales.")
 
-st.title("🎴 Pokémon Price Hub")
-st.write("Search for specific cards to see their real-time market value.")
+def get_market_price(card_name):
+    # The URL specifically asks eBay for Sold/Completed items
+    url = f"https://www.ebay.com/sch/i.html?_nkw={card_name.replace(' ', '+')}+pokemon+card&LH_Sold=1&LH_Complete=1"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-# --- 3. THE DATA ENGINE (TCGdex API + Smart Pricing) ---
-def get_card_data(name):
-    # Search for cards by name
-    search_url = f"https://api.tcgdex.net/v2/en/cards?name={name}"
     try:
-        response = requests.get(search_url, timeout=10)
-        results = response.json()
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        price_tags = soup.find_all('span', {'class': 's-item__price'})
         
-        all_cards = []
-        # Get detailed info for the top 10 matches
-        for item in results[:10]:
-            detail_url = f"https://api.tcgdex.net/v2/en/cards/{item['id']}"
-            card = requests.get(detail_url).json()
-            
-            # --- SMART PRICE SEARCH ---
-            tcg_data = card.get("pricing", {}).get("tcgplayer", {})
-            market_price = "N/A"
-            
-            if tcg_data:
-                # Loop through possible print variants to find the first valid price
-                # Umbreon VMAX is usually 'holofoil', while base cards are 'normal'
-                for p_type in ["holofoil", "normal", "reverse", "unlimited"]:
-                    p_info = tcg_data.get(p_type)
-                    if p_info and p_info.get("market"):
-                        market_price = f"${p_info.get('market')}"
-                        break 
-            
-            all_cards.append({
-                "name": card.get("name"),
-                "set": card.get("set", {}).get("name"),
-                "number": card.get("localId"),
-                "image": f"{card.get('image')}/low.webp" if card.get('image') else None,
-                "price": market_price,
-                "rarity": card.get("rarity", "Common")
-            })
-        return all_cards
-    except Exception as e:
-        return []
+        raw_prices = []
+        for tag in price_tags:
+            # Clean text and handle ranges
+            text = tag.text.replace('$', '').replace(',', '').split('to')[0].strip()
+            try:
+                price = float(text)
+                # Ignore items under $0.99 (usually shipping scams or digital cards)
+                if price > 0.99:
+                    raw_prices.append(price)
+            except:
+                continue
+        
+        if len(raw_prices) > 3:
+            # PriceCharting Logic: Remove the highest and lowest to get the 'True' average
+            raw_prices.sort()
+            trimmed_prices = raw_prices[1:-1] 
+            return statistics.mean(trimmed_prices), len(raw_prices)
+        return None, 0
+    except:
+        return None, 0
 
-# --- 4. THE APP INTERFACE ---
-query = st.text_input("Enter Card Name:", placeholder="e.g. Umbreon VMAX")
+# --- THE UI ---
+query = st.text_input("Search for a card:", placeholder="e.g. Umbreon VMAX 215/203")
 
 if query:
-    with st.spinner(f"Analyzing market for {query}..."):
-        cards = get_card_data(query)
+    with st.spinner('Calculating market value...'):
+        avg, count = get_market_price(query)
         
-        if cards:
-            # Display cards in a 2-column grid
-            cols = st.columns(2)
-            for i, card in enumerate(cards):
-                with cols[i % 2]:
-                    with st.container(border=True):
-                        if card["image"]:
-                            st.image(card["image"], use_container_width=True)
-                        
-                        st.subheader(card["name"])
-                        
-                        # Show the Market Price in a big metric box
-                        st.metric("Market Value", card["price"])
-                        
-                        st.write(f"**Set:** {card['set']}")
-                        st.write(f"**Card #:** {card['number']}")
-                        st.caption(f"Rarity: {card['rarity']}")
-                        
-                        # Direct PriceCharting Link for historical data
-                        search_term = f"{card['name']} {card['set']} {card['number']}".replace(" ", "+")
-                        st.link_button("View Price History", 
-                                       f"https://www.pricecharting.com/search-products?q={search_term}&type=prices")
+        if avg:
+            st.metric(label="Estimated Market Price", value=f"${avg:.2f}")
+            st.caption(f"Based on {count} recent sales found on eBay.")
+            
+            # Fun PriceCharting style "Conditions"
+            col1, col2 = st.columns(2)
+            col1.button("Ungraded", use_container_width=True)
+            col2.button("PSA 10 (coming soon)", disabled=True, use_container_width=True)
         else:
-            st.warning("No specific card variants found. Try adding the set name!")
+            st.error("No data found. Try being more specific with the set number!")
+
+st.divider()
+st.info("💡 Tip: Add the card number (like '173/151') for much more accurate prices!")
