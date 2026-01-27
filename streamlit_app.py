@@ -10,7 +10,7 @@ def init_firebase():
         try:
             # Pulls from Streamlit Secrets
             fb_creds = dict(st.secrets["firebase_service_account"])
-            # Fixes the private key formatting
+            # Fixes the private key formatting and removes whitespace
             fb_creds["private_key"] = fb_creds["private_key"].replace('\\n', '\n').strip()
             
             cred = credentials.Certificate(fb_creds)
@@ -19,6 +19,7 @@ def init_firebase():
             st.error(f"Firebase failed to load: {e}")
             st.stop()
 
+# Run the initialization immediately
 init_firebase()
 
 # --- 2. LIVE INTERNET SCRAPER ---
@@ -41,7 +42,7 @@ def scoop_prices(query):
     except Exception as e:
         return None
 
-# --- 3. ACCOUNT UI ---
+# --- 3. ACCOUNT UI (The Login Gate) ---
 if 'user' not in st.session_state:
     st.title("🎴 Pokémon Price Tracker")
     st.subheader("Login to see your collection")
@@ -50,18 +51,4 @@ if 'user' not in st.session_state:
     
     with tab1:
         login_email = st.text_input("Email", key="l_email")
-        login_pass = st.text_input("Password", type="password", key="l_pass")
-        if st.button("Log In"):
-            if login_email:
-                try:
-                    # Verification check
-                    user = auth.get_user_by_email(login_email)
-                    st.session_state.user = user.uid
-                    st.session_state.email = login_email
-                    st.rerun()
-                except Exception as e:
-                    st.error("Login failed. Check your email or create an account.")
-            else:
-                st.warning("Please enter an email.")
-
-    with tab2:
+        login_pass = st.text_input("Password", type="password
