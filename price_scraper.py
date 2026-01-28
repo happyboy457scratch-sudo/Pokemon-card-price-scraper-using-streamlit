@@ -1,30 +1,32 @@
 import requests
 
-def get_market_price(card_name):
+def get_card_data(card_name):
+    """
+    Fetches both the market price and the image URL for a card.
+    """
     try:
-        # 1. Search for the card to get its unique ID
+        # 1. Search for the card
         search_url = f"https://api.tcgdex.net/v2/en/cards?name={card_name}"
-        search_response = requests.get(search_url, timeout=10)
-        cards = search_response.json()
+        search_res = requests.get(search_url, timeout=10).json()
 
-        if not cards:
-            return None, "Card not found in database."
+        if not search_res:
+            return None, "Card not found."
 
-        # 2. Get the specific price for the first match
-        card_id = cards[0]['id']
+        # 2. Get the specific details of the first card found
+        card_id = search_res[0]['id']
         detail_url = f"https://api.tcgdex.net/v2/en/cards/{card_id}"
-        detail_response = requests.get(detail_url, timeout=10)
-        data = detail_response.json()
+        card = requests.get(detail_url, timeout=10).json()
 
-        # 3. Dig into the TCGplayer price (Standard 'Market' Price)
-        pricing = data.get('pricing', {}).get('tcgplayer', {})
+        # 3. Extract Image and Price
+        image_url = f"{card.get('image')}/high.webp"
+        pricing = card.get('pricing', {}).get('tcgplayer', {})
         
-        # Check for Normal or Holo prices
-        market_price = pricing.get('normal', {}).get('market') or pricing.get('holofoil', {}).get('market')
+        # Look for Normal or Holo market price
+        price = pricing.get('normal', {}).get('market') or pricing.get('holofoil', {}).get('market')
 
-        if market_price:
-            return market_price, "Success"
-        return None, "Price data currently unavailable for this card."
-        
+        if price:
+            return {"price": price, "image": image_url, "name": card['name']}, "Success"
+        return {"price": "N/A", "image": image_url, "name": card['name']}, "Price missing"
+
     except Exception as e:
         return None, f"Error: {str(e)}"
