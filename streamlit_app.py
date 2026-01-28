@@ -16,7 +16,7 @@ if not st.user.is_logged_in:
 
 # --- 3. ADMIN CONFIG ---
 # Replace with your actual email to unlock admin buttons
-ADMIN_EMAIL = "your-email@gmail.com" 
+ADMIN_EMAIL = "Happyboy457scratch@gmail.com" 
 is_admin = (st.user.email == ADMIN_EMAIL)
 
 # --- 4. APP INTERFACE ---
