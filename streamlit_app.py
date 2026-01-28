@@ -14,7 +14,7 @@ if not st.user.is_logged_in:
     st.stop()
 
 # --- ADMIN SETUP ---
-# CHANGE THIS to your actual email used for login
+# Update this to your email to regain "Admin" control later
 ADMIN_EMAIL = "your-email@gmail.com" 
 is_admin = (st.user.email == ADMIN_EMAIL)
 
@@ -30,7 +30,6 @@ def save_to_vault(card_data, user):
             except:
                 collection = []
     
-    # Add meta info
     card_entry = card_data.copy()
     card_entry["owner"] = user
     collection.append(card_entry)
@@ -40,6 +39,9 @@ def save_to_vault(card_data, user):
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title(f"Welcome, {st.user.name.split()[0]}!")
+# This line helps you debug:
+st.sidebar.write(f"Logged in as: {st.user.email}")
+
 menu = st.sidebar.radio("Navigation", ["🔍 Search Market", "🛡️ My Vault"])
 
 if st.sidebar.button("Logout"):
@@ -55,15 +57,12 @@ if menu == "🔍 Search Market":
         
         if data:
             col1, col2 = st.columns([1, 2])
-            
             with col1:
                 if data.get('image'):
                     st.image(data['image'], use_container_width=True)
                 
             with col2:
                 st.header(data['name'])
-                
-                # Metric display (No math formatting to prevent crashes)
                 p_raw = data.get('price', 'N/A')
                 p_psa = data.get('psa10', 'N/A')
 
@@ -71,37 +70,37 @@ if menu == "🔍 Search Market":
                 m1.metric("Ungraded / Raw", p_raw)
                 m2.metric("PSA 10 (Graded)", p_psa)
 
-                if is_admin:
-                    st.divider()
-                    if st.button("💾 Save to Collection"):
-                        save_to_vault(data, st.user.name)
-                        st.success(f"Saved {data['name']} to your vault!")
+                st.divider()
+                # REMOVED the 'if is_admin' check so you can see the button now!
+                if st.button("💾 Save to Collection"):
+                    save_to_vault(data, st.user.name)
+                    st.success(f"Saved {data['name']} to your vault!")
         else:
             st.error(status)
 
 # --- VAULT PAGE ---
 else:
     st.title("🛡️ The Collector's Vault")
-    
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r") as f:
-            my_cards = json.load(f)
+            try:
+                my_cards = json.load(f)
+            except:
+                my_cards = []
         
         if not my_cards:
-            st.info("Your vault is empty. Start searching to add cards!")
+            st.info("Your vault is empty.")
         else:
-            # Displaying in a clean list
             for idx, card in enumerate(my_cards):
                 with st.container(border=True):
                     c1, c2, c3 = st.columns([1, 3, 1])
-                    c1.image(card['image'], width=100)
-                    c2.subheader(card['name'])
-                    c2.write(f"**Raw:** {card['price']} | **PSA 10:** {card['psa10']}")
+                    c1.image(card.get('image', ''), width=100)
+                    c2.subheader(card.get('name', 'Unknown Card'))
+                    c2.write(f"**Raw:** {card.get('price', 'N/A')} | **PSA 10:** {card.get('psa10', 'N/A')}")
                     if c3.button("🗑️", key=f"del_{idx}"):
-                        # Simple delete logic
                         my_cards.pop(idx)
                         with open(DB_FILE, "w") as f:
                             json.dump(my_cards, f, indent=4)
                         st.rerun()
     else:
-        st.info("No collection found. Save your first card to create one!")
+        st.info("No collection found yet.")
