@@ -1,62 +1,54 @@
-import requests
-from bs4 import BeautifulSoup
+import streamlit as st
+from price_scraper import get_card_data
 
-def get_card_data(query):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
-    
-    # URL construction
-    search_url = f"https://www.pricecharting.com/search-products?q={query.replace(' ', '+')}&type=prices"
-    
-    try:
-        response = requests.get(search_url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, "html.parser")
+st.set_page_config(page_title="PokéValue", page_icon="📈")
 
-        # Check for search results list
-        product_row = soup.find("tr", id=lambda x: x and x.startswith("product-"))
+# --- AUTH0 LOGIN ---
+if not st.user.is_logged_in:
+    st.title("Trainer Login")
+    if st.button("Log in with Auth0"):
+        st.login("auth0")
+    st.stop()
+
+# --- ADMIN SETUP ---
+# Update this to your actual email address
+ADMIN_EMAIL = "your-email@gmail.com" 
+is_admin = (st.user.email == ADMIN_EMAIL)
+
+st.title("Pocket PriceCharting")
+st.sidebar.write(f"Logged in as: {st.user.name}")
+
+# --- SEARCH UI ---
+query = st.text_input("Search for a card:", placeholder="e.g. Lugia #9")
+
+if query:
+    data, status = get_card_data(query)
+    
+    if data:
+        col1, col2 = st.columns([1, 1.5])
         
-        if product_row:
-            title_tag = product_row.find("td", class_="title").find("a")
-            card_name = title_tag.text.strip()
+        with col1:
+            if data.get('image'):
+                st.image(data['image'], use_container_width=True)
             
-            # Correcting URL prefixing
-            card_page_link = title_tag['href']
-            if not card_page_link.startswith("http"):
-                card_page_link = "https://www.pricecharting.com" + card_page_link
+        with col2:
+            st.header(data['name'])
             
-            ungraded = product_row.find("td", class_="price numeric used_price")
-            psa10 = product_row.find("td", class_="price numeric graded_price")
-            
-            # Fetch image from the specific card page
-            card_page_res = requests.get(card_page_link, headers=headers, timeout=5)
-            card_soup = BeautifulSoup(card_page_res.text, "html.parser")
-            cover_div = card_soup.find("div", class_="cover")
-            image_url = cover_div.find("img")['src'] if cover_div else ""
-            
-            return {
-                "name": card_name,
-                "price": ungraded.text.strip() if ungraded else "N/A",
-                "psa10": psa10.text.strip() if psa10 else "N/A",
-                "image": image_url
-            }, "Success"
+            # --- THE FIX: NO MORE MATH ERRORS ---
+            # We display the price string exactly as it comes from the scraper.
+            # No ':.2f' means no more ValueError.
+            p_raw = data.get('price', 'N/A')
+            p_psa = data.get('psa10', 'N/A')
 
-        else:
-            # Direct product page landing
-            title = soup.find("h1", class_="title")
-            if not title:
-                return None, "Card not found. Try adding the set name."
-            
-            img_tag = soup.find("div", class_="cover").find("img")
-            ungraded = soup.find("td", id="used_price")
-            psa10 = soup.find("td", id="graded_price")
-            
-            return {
-                "name": title.text.strip(),
-                "price": ungraded.text.strip() if ungraded else "N/A",
-                "psa10": psa10.text.strip() if psa10 else "N/A",
-                "image": img_tag['src'] if img_tag else ""
-            }, "Success"
+            m1, m2 = st.columns(2)
+            m1.metric("Ungraded / Raw", p_raw)
+            m2.metric("PSA 10 (Graded)", p_psa)
 
-    except Exception as e:
-        return None, f
+            if is_admin:
+                st.divider()
+                st.button("💾 Save to Collection")
+    else:
+        st.error(status)
+
+if st.sidebar.button("Logout"):
+    st.logout()
