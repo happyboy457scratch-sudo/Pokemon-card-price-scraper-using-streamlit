@@ -6,14 +6,14 @@ def get_card_data(query):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    # Clean query for URL
+    # URL construction
     search_url = f"https://www.pricecharting.com/search-products?q={query.replace(' ', '+')}&type=prices"
     
     try:
         response = requests.get(search_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # Case 1: Multiple search results (Table view)
+        # Check for search results list
         product_row = soup.find("tr", id=lambda x: x and x.startswith("product-"))
         
         if product_row:
@@ -41,11 +41,11 @@ def get_card_data(query):
                 "image": image_url
             }, "Success"
 
-        # Case 2: Direct product page landing
         else:
+            # Direct product page landing
             title = soup.find("h1", class_="title")
             if not title:
-                return None, "Card not found. Try adding the set name (e.g., Base Set)."
+                return None, "Card not found. Try adding the set name."
             
             img_tag = soup.find("div", class_="cover").find("img")
             ungraded = soup.find("td", id="used_price")
@@ -59,4 +59,4 @@ def get_card_data(query):
             }, "Success"
 
     except Exception as e:
-        return None, f"Scraper Error: {str(e)}"
+        return None, f
