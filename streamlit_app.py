@@ -1,61 +1,64 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
-import statistics
 
-st.set_page_config(page_title="Pocket PriceCharting", page_icon="📈")
+st.set_page_config(page_title="PokéValue Admin", page_icon="🃏")
 
-st.title("📈 Pocket PriceCharting")
-st.write("Real-time market value based on recent eBay sales.")
+# 1. THE GATEKEEPER
+# Streamlit's built-in Google login stores user info in st.experimental_user
+if not st.experimental_user.is_logged_in:
+    st.title("Please Log In")
+    st.write("Log in with Google to access the market prices.")
+    if st.button("Log in with Google"):
+        st.login()
+    st.stop()
 
-def get_market_price(card_name):
-    # The URL specifically asks eBay for Sold/Completed items
-    url = f"https://www.ebay.com/sch/i.html?_nkw={card_name.replace(' ', '+')}+pokemon+card&LH_Sold=1&LH_Complete=1"
-    headers = {"User-Agent": "Mozilla/5.0"}
+# 2. DEFINE THE ADMIN
+# Put YOUR Gmail address here
+ADMIN_EMAIL = "your-email@gmail.com" 
+is_admin = st.experimental_user.email == ADMIN_EMAIL
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        price_tags = soup.find_all('span', {'class': 's-item__price'})
-        
-        raw_prices = []
-        for tag in price_tags:
-            # Clean text and handle ranges
-            text = tag.text.replace('$', '').replace(',', '').split('to')[0].strip()
-            try:
-                price = float(text)
-                # Ignore items under $0.99 (usually shipping scams or digital cards)
-                if price > 0.99:
-                    raw_prices.append(price)
-            except:
-                continue
-        
-        if len(raw_prices) > 3:
-            # PriceCharting Logic: Remove the highest and lowest to get the 'True' average
-            raw_prices.sort()
-            trimmed_prices = raw_prices[1:-1] 
-            return statistics.mean(trimmed_prices), len(raw_prices)
-        return None, 0
-    except:
-        return None, 0
+# 3. THE APP
+st.title("🃏 Pokémon Card Live Search")
 
-# --- THE UI ---
-query = st.text_input("Search for a card:", placeholder="e.g. Umbreon VMAX 215/203")
+if is_admin:
+    st.success(f"Welcome, Admin ({st.experimental_user.name})")
+else:
+    st.info(f"Welcome, {st.experimental_user.name}")
+
+query = st.text_input("Enter Card Name:", placeholder="e.g. Mewtwo 151/165")
 
 if query:
-    with st.spinner('Calculating market value...'):
-        avg, count = get_market_price(query)
-        
-        if avg:
-            st.metric(label="Estimated Market Price", value=f"${avg:.2f}")
-            st.caption(f"Based on {count} recent sales found on eBay.")
-            
-            # Fun PriceCharting style "Conditions"
-            col1, col2 = st.columns(2)
-            col1.button("Ungraded", use_container_width=True)
-            col2.button("PSA 10 (coming soon)", disabled=True, use_container_width=True)
-        else:
-            st.error("No data found. Try being more specific with the set number!")
+    with st.spinner("Searching..."):
+        try:
+            # API Call
+            res = requests.get(f"https://api.tcgdex.net/v2/en/cards?name={query}").json()
+            if res:
+                card = requests.get(f"https://api.tcgdex.net/v2/en/cards/{res[0]['id']}").json()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.image(f"{card.get('image')}/high.webp")
+                with col2:
+                    st.header(card.get('name'))
+                    # Price logic
+                    pricing = card.get('pricing', {}).get('tcgplayer', {})
+                    price = pricing.get('normal', {}).get('market') or pricing.get('holofoil', {}).get('market')
+                    
+                    if price:
+                        st.metric("Market Price", f"${price:.2f}")
+                    else:
+                        st.warning("No price data found.")
 
-st.divider()
-st.info("💡 Tip: Add the card number (like '173/151') for much more accurate prices!")
+                    # ADMIN ONLY BUTTON
+                    if is_admin:
+                        st.divider()
+                        if st.button("📝 Edit Database Entry"):
+                            st.write("Admin tool: Change card details (Coming Soon)")
+            else:
+                st.error("Card not found!")
+        except:
+            st.error("Connection error.")
+
+# Logout button in sidebar
+if st.sidebar.button("Logout"):
+    st.logout()
