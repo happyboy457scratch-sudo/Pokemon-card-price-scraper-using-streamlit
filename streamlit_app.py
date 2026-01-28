@@ -1,64 +1,71 @@
 import streamlit as st
 import requests
+from price_scraper import get_card_data
 
-st.set_page_config(page_title="PokéValue Admin", page_icon="🃏")
+# --- 1. PAGE SETUP ---
+st.set_page_config(page_title="PokéValue Admin", page_icon="🃏", layout="centered")
 
-# 1. THE GATEKEEPER
-# Streamlit's built-in Google login stores user info in st.experimental_user
-if not st.experimental_user.is_logged_in:
-    st.title("Please Log In")
-    st.write("Log in with Google to access the market prices.")
+# --- 2. GOOGLE AUTHENTICATION ---
+# This uses the secrets you added to your Streamlit dashboard
+if not st.user.is_logged_in:
+    st.title("🃏 PokéValue Login")
+    st.info("Log in with Google to access the live market database.")
     if st.button("Log in with Google"):
         st.login()
     st.stop()
 
-# 2. DEFINE THE ADMIN
-# Put YOUR Gmail address here
+# --- 3. ADMIN CONFIG ---
+# Replace with your actual email to unlock admin buttons
 ADMIN_EMAIL = "your-email@gmail.com" 
-is_admin = st.experimental_user.email == ADMIN_EMAIL
+is_admin = (st.user.email == ADMIN_EMAIL)
 
-# 3. THE APP
-st.title("🃏 Pokémon Card Live Search")
+# --- 4. APP INTERFACE ---
+st.title("📈 Pocket PriceCharting")
 
-if is_admin:
-    st.success(f"Welcome, Admin ({st.experimental_user.name})")
-else:
-    st.info(f"Welcome, {st.experimental_user.name}")
+# Sidebar for logout and status
+with st.sidebar:
+    st.write(f"Logged in as: **{st.user.name}**")
+    if is_admin:
+        st.success("Admin Access Granted")
+    if st.button("Log out"):
+        st.logout()
 
-query = st.text_input("Enter Card Name:", placeholder="e.g. Mewtwo 151/165")
+# Search Input
+query = st.text_input("Search for a card:", placeholder="e.g. Umbreon VMAX 215/203")
 
 if query:
-    with st.spinner("Searching..."):
-        try:
-            # API Call
-            res = requests.get(f"https://api.tcgdex.net/v2/en/cards?name={query}").json()
-            if res:
-                card = requests.get(f"https://api.tcgdex.net/v2/en/cards/{res[0]['id']}").json()
+    with st.spinner("Fetching live data..."):
+        # This calls your price_scraper.py script
+        data, status = get_card_data(query)
+
+        if data:
+            col1, col2 = st.columns([1, 1.2])
+
+            with col1:
+                st.image(data['image'], use_container_width=True)
+
+            with col2:
+                st.header(data['name'])
+                st.caption(f"Set: {data['set']}")
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.image(f"{card.get('image')}/high.webp")
-                with col2:
-                    st.header(card.get('name'))
-                    # Price logic
-                    pricing = card.get('pricing', {}).get('tcgplayer', {})
-                    price = pricing.get('normal', {}).get('market') or pricing.get('holofoil', {}).get('market')
-                    
-                    if price:
-                        st.metric("Market Price", f"${price:.2f}")
-                    else:
-                        st.warning("No price data found.")
+                if data['price']:
+                    st.metric("Market Price", f"${data['price']:.2f}")
+                    st.success("Live TCGplayer data synced.")
+                else:
+                    st.warning("Price not available for this specific printing.")
 
-                    # ADMIN ONLY BUTTON
-                    if is_admin:
-                        st.divider()
-                        if st.button("📝 Edit Database Entry"):
-                            st.write("Admin tool: Change card details (Coming Soon)")
-            else:
-                st.error("Card not found!")
-        except:
-            st.error("Connection error.")
+                # Admin-Only Section
+                if is_admin:
+                    st.divider()
+                    st.subheader("Admin Tools")
+                    if st.button("➕ Add to My Collection"):
+                        st.write("Added! (Logic for saving coming soon)")
+                    if st.button("🔍 View eBay Listings"):
+                        # This opens a new tab with the eBay "Sold" search
+                        ebay_url = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}+pokemon+card&LH_Sold=1&LH_Complete=1"
+                        st.link_button("Go to eBay Sold", ebay_url)
+        else:
+            st.error(f"Error: {status}")
 
-# Logout button in sidebar
-if st.sidebar.button("Logout"):
-    st.logout()
+st.divider()
+st.caption("Powered by TCGdex & Streamlit Auth. Safe & Secure.")
