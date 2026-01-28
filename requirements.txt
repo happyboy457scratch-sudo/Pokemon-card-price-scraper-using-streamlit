@@ -4,3 +4,4 @@ beautifulsoup4
 pandas
 requests
 streamlit-authenticator==0.3.2
+st-gsheets-connection
