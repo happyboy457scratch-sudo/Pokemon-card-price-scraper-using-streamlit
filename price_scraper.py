@@ -1,106 +1,67 @@
-import streamlit as st
-import json
-import os
-from price_scraper import get_card_data
+import requests
+from bs4 import BeautifulSoup
 
-# --- CONFIG ---
-st.set_page_config(page_title="PokéValue Vault", page_icon="📈", layout="wide")
-
-# --- AUTH0 LOGIN ---
-if not st.user.is_logged_in:
-    st.title("Trainer Login")
-    if st.button("Log in with Auth0"):
-        st.login("auth0")
-    st.stop()
-
-# --- ADMIN SETUP ---
-# Update this to your email to regain "Admin" control later
-ADMIN_EMAIL = "your-email@gmail.com" 
-is_admin = (st.user.email == ADMIN_EMAIL)
-
-# --- COLLECTION DATABASE LOGIC ---
-DB_FILE = "collection.json"
-
-def save_to_vault(card_data, user):
-    collection = []
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            try:
-                collection = json.load(f)
-            except:
-                collection = []
+def get_card_data(query):
+    # This header helps bypass basic bot detection
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     
-    card_entry = card_data.copy()
-    card_entry["owner"] = user
-    collection.append(card_entry)
+    # Format the search URL
+    search_query = query.replace(" ", "+")
+    search_url = f"https://www.pricecharting.com/search-products?q={search_query}&type=prices"
     
-    with open(DB_FILE, "w") as f:
-        json.dump(collection, f, indent=4)
+    try:
+        response = requests.get(search_url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None, f"Connection failed (Status: {response.status_code})"
+            
+        soup = BeautifulSoup(response.text, "html.parser")
 
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.title(f"Welcome, {st.user.name.split()[0]}!")
-# This line helps you debug:
-st.sidebar.write(f"Logged in as: {st.user.email}")
-
-menu = st.sidebar.radio("Navigation", ["🔍 Search Market", "🛡️ My Vault"])
-
-if st.sidebar.button("Logout"):
-    st.logout()
-
-# --- SEARCH PAGE ---
-if menu == "🔍 Search Market":
-    st.title("Pocket PriceCharting")
-    query = st.text_input("Search for a card:", placeholder="e.g. Lugia #9")
-
-    if query:
-        data, status = get_card_data(query)
+        # Logic for Search Results Table (List View)
+        product_row = soup.find("tr", id=lambda x: x and x.startswith("product-"))
         
-        if data:
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                if data.get('image'):
-                    st.image(data['image'], use_container_width=True)
-                
-            with col2:
-                st.header(data['name'])
-                p_raw = data.get('price', 'N/A')
-                p_psa = data.get('psa10', 'N/A')
+        if product_row:
+            title_tag = product_row.find("td", class_="title").find("a")
+            card_name = title_tag.text.strip()
+            
+            # Navigate to specific card page for the image
+            card_page_link = title_tag['href']
+            if not card_page_link.startswith("http"):
+                card_page_link = "https://www.pricecharting.com" + card_page_link
+            
+            ungraded = product_row.find("td", class_="price numeric used_price")
+            psa10 = product_row.find("td", class_="price numeric graded_price")
+            
+            # Secondary request to get the high-res card art
+            card_page_res = requests.get(card_page_link, headers=headers, timeout=5)
+            card_soup = BeautifulSoup(card_page_res.text, "html.parser")
+            cover_div = card_soup.find("div", class_="cover")
+            image_url = cover_div.find("img")['src'] if cover_div else ""
+            
+            return {
+                "name": card_name,
+                "price": ungraded.text.strip() if ungraded else "N/A",
+                "psa10": psa10.text.strip() if psa10 else "N/A",
+                "image": image_url
+            }, "Success"
 
-                m1, m2 = st.columns(2)
-                m1.metric("Ungraded / Raw", p_raw)
-                m2.metric("PSA 10 (Graded)", p_psa)
-
-                st.divider()
-                # REMOVED the 'if is_admin' check so you can see the button now!
-                if st.button("💾 Save to Collection"):
-                    save_to_vault(data, st.user.name)
-                    st.success(f"Saved {data['name']} to your vault!")
+        # Logic for Direct Product Page (If search was an exact match)
         else:
-            st.error(status)
+            title = soup.find("h1", class_="title")
+            if not title:
+                return None, "Card not found. Be more specific!"
+            
+            img_tag = soup.find("div", class_="cover").find("img")
+            ungraded = soup.find("td", id="used_price")
+            psa10 = soup.find("td", id="graded_price")
+            
+            return {
+                "name": title.text.strip(),
+                "price": ungraded.text.strip() if ungraded else "N/A",
+                "psa10": psa10.text.strip() if psa10 else "N/A",
+                "image": img_tag['src'] if img_tag else ""
+            }, "Success"
 
-# --- VAULT PAGE ---
-else:
-    st.title("🛡️ The Collector's Vault")
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            try:
-                my_cards = json.load(f)
-            except:
-                my_cards = []
-        
-        if not my_cards:
-            st.info("Your vault is empty.")
-        else:
-            for idx, card in enumerate(my_cards):
-                with st.container(border=True):
-                    c1, c2, c3 = st.columns([1, 3, 1])
-                    c1.image(card.get('image', ''), width=100)
-                    c2.subheader(card.get('name', 'Unknown Card'))
-                    c2.write(f"**Raw:** {card.get('price', 'N/A')} | **PSA 10:** {card.get('psa10', 'N/A')}")
-                    if c3.button("🗑️", key=f"del_{idx}"):
-                        my_cards.pop(idx)
-                        with open(DB_FILE, "w") as f:
-                            json.dump(my_cards, f, indent=4)
-                        st.rerun()
-    else:
-        st.info("No collection found yet.")
+    except Exception as e:
+        return None, f"Scraper Error: {str(e)}"
