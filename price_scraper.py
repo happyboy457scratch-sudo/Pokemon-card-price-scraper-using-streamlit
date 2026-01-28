@@ -1,46 +1,47 @@
 import requests
+from bs4 import BeautifulSoup
 
-def get_card_data(card_name):
-    """
-    Fetches market price and image URL from the TCGdex API.
-    This replaces the old eBay scraper to avoid IP blocks.
-    """
+def get_card_data(query):
+    # Format the search URL for PriceCharting
+    search_query = query.replace(" ", "+")
+    search_url = f"https://www.pricecharting.com/search-products?q={search_query}&type=prices"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+    }
+
     try:
-        # 1. Search for the card by name to get its unique ID
-        # We use 'en' for English cards
-        search_url = f"https://api.tcgdex.net/v2/en/cards?name={card_name}"
-        search_response = requests.get(search_url, timeout=10)
-        search_results = search_response.json()
+        response = requests.get(search_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        if not search_results:
-            return None, "Card not found in database."
+        # 1. Find the first product result in the table
+        product_row = soup.find("tr", id=lambda x: x and x.startswith("product-"))
+        if not product_row:
+            return None, "Card not found on PriceCharting."
 
-        # 2. Get the full details for the first/top match
-        card_id = search_results[0]['id']
-        detail_url = f"https://api.tcgdex.net/v2/en/cards/{card_id}"
-        card_data = requests.get(detail_url, timeout=10).json()
-
-        # 3. Extract the Image and Price
-        # We try to get the 'High Quality' image
-        image_url = f"{card_data.get('image')}/high.webp"
+        # 2. Extract Title and Image
+        title_tag = product_row.find("td", class_="title").find("a")
+        card_name = title_tag.text.strip()
+        # Direct link to the card page to get the image
+        card_page_url = "https://www.pricecharting.com" + title_tag['href']
         
-        # We look for the TCGplayer market price (Normal, then Holo, then Reverse)
-        pricing = card_data.get('pricing', {}).get('tcgplayer', {})
-        market_price = (
-            pricing.get('normal', {}).get('market') or 
-            pricing.get('holofoil', {}).get('market') or
-            pricing.get('reverse', {}).get('market')
-        )
+        # 3. Get Prices (Ungraded is usually the first price column)
+        # PriceCharting uses specific classes for prices
+        ungraded_price = product_row.find("td", class_="price numeric used_price")
+        psa10_price = product_row.find("td", class_="price numeric graded_price")
 
-        # 4. Return the data as a clean dictionary
-        result = {
-            "name": card_data.get('name'),
-            "set": card_data.get('set', {}).get('name'),
-            "price": market_price,
+        # 4. Fetch the Image from the specific card page
+        card_page = requests.get(card_page_url, headers=headers)
+        card_soup = BeautifulSoup(card_page.text, "html.parser")
+        img_tag = card_soup.find("div", class_="cover").find("img")
+        image_url = img_tag['src'] if img_tag else ""
+
+        return {
+            "name": card_name,
+            "price": ungraded_price.text.strip() if ungraded_price else "N/A",
+            "psa10": psa10_price.text.strip() if psa10_price else "N/A",
             "image": image_url
-        }
-        
-        return result, "Success"
+        }, "Success"
 
     except Exception as e:
-        return None, f"Connection Error: {str(e)}"
+        return None, f"PriceCharting Error: {str(e)}"
